@@ -31,7 +31,6 @@ ecotaxa_project_id = 0
 
 ## You should not have to touch anything below this line ----
 
-import base64
 import logging
 import os
 import re
@@ -39,8 +38,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any
-from urllib import response
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import google.auth
 import requests
@@ -182,66 +180,22 @@ def download_drive_file(drive_service: Any, file_id: str, destination: Path) -> 
             _, done = downloader.next_chunk()
 
 
-def upload_file_tus(session: requests.Session, archive: Path) -> str:
-    """Upload an archive with TUS and return the EcoTaxa user-file server path."""
-    file_size = archive.stat().st_size
-    filename_b64 = base64.b64encode(archive.name.encode("utf-8")).decode("ascii")
-    response = session.post(
-        f"{ECOTAXA_API_URL}/user_files/upload/",
-        headers={
-            "Tus-Resumable": "1.0.0",
-            "Upload-Length": str(file_size),
-            "Upload-Metadata": f"filename {filename_b64}",
-        },
-        timeout=REQUEST_TIMEOUT_SECONDS,
-    )
-    if response.status_code != 201:
-        raise RuntimeError(
-            f"TUS upload creation failed for {archive.name} "
-            f"(HTTP {response.status_code}): {response.text}"
-        )
-    location = response.headers.get("Location")
-    if not location:
-        raise RuntimeError(f"TUS upload response for {archive.name} has no Location")
-    upload_url = urljoin(f"{ECOTAXA_API_URL}/", location)
-
-    offset = 0
+def upload_file(session: requests.Session, archive: Path) -> str:
+    """Upload an archive through EcoTaxa's multipart user-file endpoint."""
     with archive.open("rb") as source:
-        while offset < file_size:
-            chunk = source.read(TUS_CHUNK_SIZE)
-            if not chunk:
-                raise RuntimeError(f"Unexpected end of archive while uploading {archive.name}")
-            patch_response = session.patch(
-                upload_url,
-                headers={
-                    "Tus-Resumable": "1.0.0",
-                    "Content-Type": "application/offset+octet-stream",
-                    "Upload-Offset": str(offset),
-                },
-                data=chunk,
-                timeout=120,
-            )
-            if patch_response.status_code != 204:
-                raise RuntimeError(
-                    f"TUS upload failed for {archive.name} at offset {offset} "
-                    f"(HTTP {patch_response.status_code}): {patch_response.text}"
-                )
-            new_offset = int(patch_response.headers.get("Upload-Offset", "-1"))
-            if new_offset != offset + len(chunk):
-                raise RuntimeError(
-                    f"TUS server returned unexpected offset {new_offset} "
-                    f"after uploading {archive.name}"
-                )
-            offset = new_offset
-
-    listing = get_json(session, "/user_files/")
-    base_path = listing.get("path", "")
-    for entry in listing.get("entries", []):
-        if entry.get("name") == archive.stem and entry.get("type") == "D":
-            return f"{base_path.rstrip('/')}/{archive.stem}"
-    raise RuntimeError(
-        f"Uploaded archive {archive.name}, but its directory was not found in EcoTaxa files"
-    )
+        response = session.post(
+            f"{ECOTAXA_API_URL}/user_files/",
+            files={"file": (archive.name, source, "application/zip")},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    response.raise_for_status()
+    server_path = response.json()
+    if not isinstance(server_path, str) or not server_path:
+        raise RuntimeError(
+            f"EcoTaxa returned an invalid server path after uploading {archive.name}: "
+            f"{server_path!r}"
+        )
+    return server_path
 
 
 def import_archive(
@@ -407,7 +361,7 @@ def main() -> None:
             zip_file = temp_dir_path / zip_info["name"]
             LOGGER.info("Downloading %s", zip_file.name)
             download_drive_file(drive_service, zip_info["id"], zip_file)
-            server_path = upload_file_tus(session, zip_file)
+            server_path = upload_file(session, zip_file)
             job_id = import_archive(session, server_path, zip_file.name)
             wait_for_job(session, job_id)
             existing_ecotaxa_samples.add(zip_info["orig_id"])
