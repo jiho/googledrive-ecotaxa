@@ -195,6 +195,13 @@ def upload_file(session: requests.Session, archive: Path) -> str:
             f"EcoTaxa returned an invalid server path after uploading {archive.name}: "
             f"{server_path!r}"
         )
+    # return only the portion of the server path that EcoTaxa expects for import, stripping the user-specific prefix and the .zip suffix
+    server_path = re.sub(
+        r"^/home/ecotaxa/ecotaxa/eco_users_files/ecotaxa_user\.\d+/",
+        "",
+        server_path,
+    )
+    server_path = re.sub(r"\.zip$", "", server_path)
     return server_path
 
 
