@@ -205,7 +205,7 @@ def upload_file(session: requests.Session, archive: Path) -> str:
     return server_path
 
 
-def import_archive(
+def import_file(
     session: requests.Session, server_path: str, archive_name: str
 ) -> int:
     response = session.post(
@@ -213,7 +213,7 @@ def import_archive(
         json={
             "source_path": server_path,
             "skip_loaded_files": False,
-            "skip_existing_objects": False,
+            "skip_existing_objects": True,
             "update_mode": "",
         },
         timeout=REQUEST_TIMEOUT_SECONDS,
@@ -369,7 +369,7 @@ def main() -> None:
             LOGGER.info("Downloading %s", zip_file.name)
             download_drive_file(drive_service, zip_info["id"], zip_file)
             server_path = upload_file(session, zip_file)
-            job_id = import_archive(session, server_path, zip_file.name)
+            job_id = import_file(session, server_path, zip_file.name)
             wait_for_job(session, job_id)
             existing_ecotaxa_samples.add(zip_info["orig_id"])
 
