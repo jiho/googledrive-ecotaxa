@@ -55,6 +55,9 @@ JOB_POLL_INTERVAL_SECONDS = 10
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
 LOGGER = logging.getLogger("ecotaxa_drive_import")
+PREDICTION_FEATURES = ['fre.%area', 'fre.angle', 'fre.area', 'fre.area_exc', 'fre.circ.', 'fre.circex', 'fre.convex_area', 'fre.eccentricity', 'fre.elongation', 'fre.equivalent_diameter', 'fre.euler_number', 'fre.extent', 'fre.height', 'fre.label', 'fre.local_centroid_col', 'fre.local_centroid_row', 'fre.major', 'fre.meanhue', 'fre.meansaturation', 'fre.meanvalue', 'fre.minor', 'fre.perim.', 'fre.perimareaexc', 'fre.perimmajor', 'fre.solidity', 'fre.stdhue', 'fre.stdsaturation', 'fre.stdvalue', 'fre.width']
+PREDICTION_CATEGORIES = [84963, 25828, 28257, 94603, 92767, 28296, 233, 92831, 31203, 93382, 92600, 31853, 28244, 85198, 28232, 92144, 31221, 11921, 28249, 31218, 92598, 28156, 92617, 17042, 31699, 28277, 85008, 85123, 13379, 92214, 95657, 85023, 55900, 18597, 17608, 31192, 31663, 31677, 31229, 95955, 92843, 84965, 12905, 31223, 45071, 31193, 55930, 31189, 11758, 54903, 13378, 31666, 78426, 92151]
+PREDICTION_MAPPING = {'85008': 84963}
 
 
 class EcoTaxaSession(requests.Session):
@@ -245,69 +248,6 @@ def wait_for_job(session: requests.Session, job_id: int) -> None:
     raise TimeoutError(f"EcoTaxa job {job_id} did not finish before the timeout")
 
 
-def project_feature_names(session: requests.Session) -> list[str]:
-    """Return the object features declared by both prediction projects."""
-    source_project = get_json(
-        session, f"/projects/{PREDICTION_SOURCE_PROJECT_ID}"
-    )
-    target_project = get_json(session, f"/projects/{ecotaxa_project_id}")
-
-    def field_names(project: dict[str, Any]) -> set[str]:
-        field_list = project.get("classiffieldlist") or ""
-        return {
-            line.split("=", 1)[0].strip()
-            for line in field_list.splitlines()
-            if "=" in line and line.split("=", 1)[0].strip()
-        }
-
-    source_free = source_project.get("obj_free_cols") or {}
-    target_free = target_project.get("obj_free_cols") or {}
-    common_numeric_free = {
-        name
-        for name in source_free.keys() & target_free.keys()
-        if str(source_free[name]).lower().startswith("n")
-        and str(target_free[name]).lower().startswith("n")
-    }
-    shared_fields = field_names(source_project) & field_names(target_project)
-
-    features = {f"fre.{name}" for name in common_numeric_free}
-    for name in shared_fields:
-        if name in common_numeric_free:
-            continue
-        if name.startswith(("obj.", "fre.")):
-            features.add(name)
-        else:
-            features.add(f"obj.{name}")
-
-    if not features:
-        raise RuntimeError(
-            "Could not discover any common object features for the source and target projects"
-        )
-    return sorted(features)
-
-
-def source_project_categories(session: requests.Session) -> list[int]:
-    result = get_json(
-        session,
-        "/project_set/taxo_stats",
-        params={"ids": str(PREDICTION_SOURCE_PROJECT_ID), "taxa_ids": "all"},
-    )
-    if not isinstance(result, list):
-        raise RuntimeError("EcoTaxa project taxonomic statistics returned an unexpected response")
-    categories = {
-        int(taxon_id)
-        for project_stats in result
-        for taxon_id in project_stats.get("used_taxa", [])
-        if isinstance(taxon_id, int) and taxon_id > 0
-    }
-    if not categories:
-        raise RuntimeError(
-            f"No used categories were returned for source project "
-            f"{PREDICTION_SOURCE_PROJECT_ID}"
-        )
-    return sorted(categories)
-
-
 def start_prediction(
     session: requests.Session, categories: list[int], features: list[str]
 ) -> int:
@@ -318,10 +258,10 @@ def start_prediction(
             "request": {
                 "project_id": ecotaxa_project_id,
                 "source_project_ids": [PREDICTION_SOURCE_PROJECT_ID],
-                "categories": categories,
-                "features": features,
+                "categories": PREDICTION_CATEGORIES,
+                "features": PREDICTION_FEATURES,
                 "learning_limit": 5000,
-                "pre_mapping": {},
+                "pre_mapping": PREDICTION_MAPPING,
             },
         },
         timeout=REQUEST_TIMEOUT_SECONDS,
@@ -373,8 +313,6 @@ def main() -> None:
             wait_for_job(session, job_id)
             existing_ecotaxa_samples.add(zip_info["orig_id"])
 
-    categories = source_project_categories(session)
-    features = project_feature_names(session)
     LOGGER.info(
         f"Starting prediction for non-validated objects with {len(categories)} categories and {len(features)} features",
     )
