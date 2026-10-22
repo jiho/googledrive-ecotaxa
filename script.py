@@ -1,4 +1,4 @@
-"""Copy matching Google Drive archives into EcoTaxa, import them, then predict.
+"""List ecotaxa files on Google Drive and upload, import and predict them on EcoTaxa.
 
 Install (pip or conda):
 google-api-python-client
@@ -45,17 +45,20 @@ import requests
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-
+# Initialize logging
 LOGGER = logging.getLogger("ecotaxa_drive_import")
 
+# Google Drive API configuration
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 TUS_CHUNK_SIZE = 8 * 1024 * 1024
 
+# EcoTaxa API configuration
 ECOTAXA_API_URL = "https://ecotaxa.obs-vlfr.fr/api"
 REQUEST_TIMEOUT_SECONDS = 60
 JOB_TIMEOUT_SECONDS = 20 * 60
 JOB_POLL_INTERVAL_SECONDS = 15
 
+# EcoTaxa prediction configuration
 PREDICTION_SOURCE_PROJECT_ID = 21194
 PREDICTION_FEATURES = ['fre.%area', 'fre.angle', 'fre.area', 'fre.area_exc', 'fre.circ.', 'fre.circex', 'fre.convex_area', 'fre.eccentricity', 'fre.elongation', 'fre.equivalent_diameter', 'fre.euler_number', 'fre.extent', 'fre.height', 'fre.label', 'fre.local_centroid_col', 'fre.local_centroid_row', 'fre.major', 'fre.meanhue', 'fre.meansaturation', 'fre.meanvalue', 'fre.minor', 'fre.perim.', 'fre.perimareaexc', 'fre.perimmajor', 'fre.solidity', 'fre.stdhue', 'fre.stdsaturation', 'fre.stdvalue', 'fre.width']
 PREDICTION_CATEGORIES = [84963, 25828, 28257, 94603, 92767, 28296, 233, 92831, 31203, 93382, 92600, 31853, 28244, 85198, 28232, 92144, 31221, 11921, 28249, 31218, 92598, 28156, 92617, 17042, 31699, 28277, 85008, 85123, 13379, 92214, 95657, 85023, 55900, 18597, 17608, 31192, 31663, 31677, 31229, 95955, 92843, 84965, 12905, 31223, 45071, 31193, 55930, 31189, 11758, 54903, 13378, 31666, 78426, 92151]
@@ -114,7 +117,7 @@ def ecotaxa_session() -> EcoTaxaSession:
     return EcoTaxaSession(token_pair)
 
 
-def get_json(
+def get_response(
     session: requests.Session, path: str, *, params: dict[str, Any] | None = None
 ) -> Any:
     response = session.get(
@@ -126,8 +129,8 @@ def get_json(
     return response.json()
 
 
-def list_project_sample_ids(session: requests.Session) -> set[str]:
-    samples = get_json(
+def list_ecotaxa_samples(session: requests.Session) -> set[str]:
+    samples = get_response(
         session,
         "/samples/search",
         params={"project_ids": str(ecotaxa_project_id), "id_pattern": "*"},
@@ -234,7 +237,7 @@ def import_file(
 def wait_for_job(session: requests.Session, job_id: int) -> None:
     deadline = time.monotonic() + JOB_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
-        job = get_json(session, f"/jobs/{job_id}/")
+        job = get_response(session, f"/jobs/{job_id}/")
         state = job.get("state")
         LOGGER.info(
             "EcoTaxa job %s: state=%s progress=%s%%",
@@ -295,7 +298,9 @@ def main() -> None:
     drive_service = build("drive", "v3", credentials=credentials, cache_discovery=False)
     session = ecotaxa_session()
 
-    existing_ecotaxa_samples = list_project_sample_ids(session)
+    # List samples to download and import
+    # = those that do not already exist in EcoTaxa
+    existing_ecotaxa_samples = list_ecotaxa_samples(session)
     new_ecotaxa_zip_files = [
         ecotaxa_zip_file
         for ecotaxa_zip_file in list_ecotaxa_zip_on_drive(drive_service, google_drive_folder_id)
@@ -303,6 +308,7 @@ def main() -> None:
     ]
     LOGGER.info(f"Found {len(new_ecotaxa_zip_files)} Drive archive(s) for samples not yet in EcoTaxa")
 
+    # For each new zip file, download it from Google Drive, upload it to EcoTaxa, and import it into the project
     temp_dir = tempfile.TemporaryDirectory(prefix="ecotaxa-import-")
     with temp_dir:
         temp_dir_path = Path(temp_dir.name)
@@ -317,6 +323,7 @@ def main() -> None:
             wait_for_job(session, job_id)
     LOGGER.info("All imports completed")
 
+    # Predict categories for all new objects in the project
     prediction_job_id = predict(session)
     wait_for_job(session, prediction_job_id)
     LOGGER.info("Prediction completed")
