@@ -261,6 +261,7 @@ def predict(
                 "features": PREDICTION_FEATURES,
                 "learning_limit": 5000,
                 "pre_mapping": PREDICTION_MAPPING,
+                "use_scn": True
             },
         },
         timeout=REQUEST_TIMEOUT_SECONDS,
