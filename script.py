@@ -248,9 +248,8 @@ def wait_for_job(session: requests.Session, job_id: int) -> None:
     raise TimeoutError(f"EcoTaxa job {job_id} did not finish before the timeout")
 
 
-def start_prediction(
-    session: requests.Session, categories: list[int], features: list[str]
-) -> int:
+def predict(
+    session: requests.Session) -> int:
     response = session.post(
         f"{ECOTAXA_API_URL}/object_set/predict",
         json={
@@ -313,10 +312,7 @@ def main() -> None:
             wait_for_job(session, job_id)
             existing_ecotaxa_samples.add(zip_info["orig_id"])
 
-    LOGGER.info(
-        f"Starting prediction for non-validated objects with {len(categories)} categories and {len(features)} features",
-    )
-    prediction_job_id = start_prediction(session, categories, features)
+    prediction_job_id = predict(session)
     wait_for_job(session, prediction_job_id)
     LOGGER.info("Import and prediction workflow completed")
 
