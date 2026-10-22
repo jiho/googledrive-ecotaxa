@@ -306,16 +306,19 @@ def main() -> None:
         temp_dir_path = Path(temp_dir.name)
         for zip_info in new_ecotaxa_zip_files:
             zip_file = temp_dir_path / zip_info["name"]
-            LOGGER.info("Downloading %s", zip_file.name)
+            LOGGER.info(f"Downloading {zip_file.name} from Google Drive")
             download_drive_file(drive_service, zip_info["id"], zip_file)
+            LOGGER.info(f"Uploading {zip_file.name} to EcoTaxa")
             server_path = upload_file(session, zip_file)
+            LOGGER.info(f"Importing {server_path} into EcoTaxa project {ecotaxa_project_id}")
             job_id = import_file(session, server_path, zip_file.name)
             wait_for_job(session, job_id)
             existing_ecotaxa_samples.add(zip_info["orig_id"])
+    LOGGER.info("All imports completed")
 
     prediction_job_id = predict(session)
     wait_for_job(session, prediction_job_id)
-    LOGGER.info("Import and prediction workflow completed")
+    LOGGER.info("Prediction completed")
 
 
 if __name__ == "__main__":
