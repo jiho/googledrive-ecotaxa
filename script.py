@@ -315,7 +315,6 @@ def main() -> None:
             LOGGER.info(f"Importing {server_path} into EcoTaxa project {ecotaxa_project_id}")
             job_id = import_file(session, server_path, zip_file.name)
             wait_for_job(session, job_id)
-            existing_ecotaxa_samples.add(zip_info["orig_id"])
     LOGGER.info("All imports completed")
 
     prediction_job_id = predict(session)
