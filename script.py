@@ -306,7 +306,12 @@ def main() -> None:
         for ecotaxa_zip_file in list_ecotaxa_zip_on_drive(drive_service, google_drive_folder_id)
         if ecotaxa_zip_file["orig_id"] not in existing_ecotaxa_samples
     ]
-    LOGGER.info(f"Found {len(new_ecotaxa_zip_files)} Drive archive(s) for samples not yet in EcoTaxa")
+
+    if (not new_ecotaxa_zip_files):
+        LOGGER.info("No new samples to import. Exiting.")
+        return
+    else:
+        LOGGER.info(f"Found {len(new_ecotaxa_zip_files)} Drive archive(s) for samples not yet in EcoTaxa")
 
     # For each new zip file, download it from Google Drive, upload it to EcoTaxa, and import it into the project
     temp_dir = tempfile.TemporaryDirectory(prefix="ecotaxa-import-")
