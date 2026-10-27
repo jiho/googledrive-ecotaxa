@@ -163,8 +163,8 @@ def list_ecotaxa_zip_on_drive(
                 fields="nextPageToken, files(id, name)",
                 pageToken=page_token,
                 pageSize=1000,
-                # supportsAllDrives=True,
-                # includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True,
             )
             .execute()
         )
