@@ -234,7 +234,11 @@ def import_file(
     return job_id
 
 
-def wait_for_job(session: requests.Session, job_id: int) -> None:
+def wait_for_job(
+    session: requests.Session,
+    job_id: int,
+    raise_on_timeout: bool = True,
+) -> None:
     deadline = time.monotonic() + JOB_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         job = get_response(session, f"/jobs/{job_id}/")
@@ -246,11 +250,16 @@ def wait_for_job(session: requests.Session, job_id: int) -> None:
             job.get("progress_pct", 0),
         )
         if state == "F":
+            LOGGER.info(f"EcoTaxa job {job_id} finished successfully")
             return
         if state in {"E", "A"}:
             raise RuntimeError(f"EcoTaxa job {job_id} failed or needs attention: {job}")
         time.sleep(JOB_POLL_INTERVAL_SECONDS)
-    raise TimeoutError(f"EcoTaxa job {job_id} did not finish before the timeout")
+    if raise_on_timeout:
+        raise TimeoutError(f"EcoTaxa job {job_id} did not finish before the timeout")
+    else:
+        LOGGER.info(f"EcoTaxa job {job_id} is still pending: {job}")
+        return
 
 
 def predict(
@@ -330,8 +339,7 @@ def main() -> None:
 
     # Predict categories for all new objects in the project
     prediction_job_id = predict(session)
-    wait_for_job(session, prediction_job_id)
-    LOGGER.info("Prediction completed")
+    wait_for_job(session, prediction_job_id, raise_on_timeout=False)
 
 
 if __name__ == "__main__":
