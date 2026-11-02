@@ -244,10 +244,7 @@ def wait_for_job(
         job = get_response(session, f"/jobs/{job_id}/")
         state = job.get("state")
         LOGGER.info(
-            "EcoTaxa job %s: state=%s progress=%s%%",
-            job_id,
-            state,
-            job.get("progress_pct", 0),
+            f"EcoTaxa job {job_id}: state={state} progress={job.get('progress_pct', 0)}%%",
         )
         if state == "F":
             LOGGER.info(f"EcoTaxa job {job_id} finished successfully")
