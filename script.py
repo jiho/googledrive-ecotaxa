@@ -61,7 +61,7 @@ JOB_POLL_INTERVAL_SECONDS = 15
 # EcoTaxa prediction configuration
 PREDICTION_SOURCE_PROJECT_ID = 21194
 PREDICTION_FEATURES = ['fre.%area', 'fre.angle', 'fre.area', 'fre.area_exc', 'fre.circ.', 'fre.circex', 'fre.convex_area', 'fre.eccentricity', 'fre.elongation', 'fre.equivalent_diameter', 'fre.euler_number', 'fre.extent', 'fre.height', 'fre.label', 'fre.local_centroid_col', 'fre.local_centroid_row', 'fre.major', 'fre.meanhue', 'fre.meansaturation', 'fre.meanvalue', 'fre.minor', 'fre.perim.', 'fre.perimareaexc', 'fre.perimmajor', 'fre.solidity', 'fre.stdhue', 'fre.stdsaturation', 'fre.stdvalue', 'fre.width']
-PREDICTION_CATEGORIES = [84963, 25828, 28257, 94603, 92767, 28296, 233, 92831, 31203, 93382, 92600, 31853, 28244, 85198, 28232, 92144, 31221, 11921, 28249, 31218, 92598, 28156, 92617, 17042, 31699, 28277, 85008, 85123, 13379, 92214, 95657, 85023, 55900, 18597, 17608, 31192, 31663, 31677, 31229, 95955, 92843, 84965, 12905, 31223, 45071, 31193, 55930, 31189, 11758, 54903, 13378, 31666, 78426, 92151]
+PREDICTION_CATEGORIES = [84963, 25828, 28257, 94603, 92767, 28296, 233, 92831, 31203, 93382, 92600, 31853, 28244, 85198, 28232, 92144, 31221, 11921, 28249, 31218, 92598, 28156, 92617, 17042, 31699, 28277, 85008, 85123, 13379, 92214, 95657, 85023, 55900, 18597, 17608, 31192, 31663, 31677, 31229, 95955, 92843, 84965, 12905, 31223, 45071, 31193, 55930, 31189, 11758, 54903, 13378, 31666, 78426, 92151, 93663]
 PREDICTION_MAPPING = {'85008': 84963}
 
 
